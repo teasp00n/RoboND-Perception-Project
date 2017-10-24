@@ -301,47 +301,116 @@ def pcl_callback(pcl_msg):
     # Suggested location for where to invoke your pr2_mover() function within pcl_callback()
     # Could add some logic to determine whether or not your object detections are robust
     # before calling pr2_mover()
-    # try:
-        # pr2_mover(detected_objects)
-    # except rospy.ROSInterruptException:
-        # pass
+    try:
+        pr2_mover(detected_objects)
+    except rospy.ROSInterruptException:
+        pass
+
+
+def find_object(object_name, object_list):
+    print("looking for {}".format(object_name))
+    found = None
+    for obj in object_list:
+        if obj.label == object_name:
+            found = obj
+            break
+    return found
+
+
+def get_place_pose(arm, drop_list_param):
+    dest = None
+    for dropbox in drop_list_param:
+        if dropbox['name'] == arm:
+            dest = dropbox
+            break
+    position = dest['position']
+    quaternion = tf.transformations.quaternion_from_euler(position[0], position[1], position[2])
+    place_pose = Pose()
+    place_pose.position.x = position[0]
+    place_pose.position.y = position[1]
+    place_pose.position.z = position[2]
+    place_pose.orientation.x = quaternion[0]
+    place_pose.orientation.y = quaternion[1]
+    place_pose.orientation.z = quaternion[2]
+    place_pose.orientation.w = quaternion[3]
+    return place_pose
 
 
 # function to load parameters and request PickPlace service
 def pr2_mover(object_list):
 
-    # TODO: Initialize variables
+    yaml_list = []
 
-    # TODO: Get/Read parameters
+    labels = []
+    centroids = []
 
-    # TODO: Parse parameters into individual variables
+    object_name = ""
+    object_group = ""
+
+    object_list_param = rospy.get_param('/object_list')
 
     # TODO: Rotate PR2 in place to capture side tables for the collision map
 
-    # TODO: Loop through the pick list
+    for i in range(0, len(object_list_param)):
+        object_name = object_list_param[i]['name']
+        object_group = object_list_param[i]['group']
 
-        # TODO: Get the PointCloud for a given object and obtain it's centroid
+        obj = find_object(object_name, object_list)
 
-        # TODO: Create 'place_pose' for the object
+        # if we can't find the object in the list we go to the next one
+        if obj is None:
+            print("couldn't find object, moving on")
+            continue
 
-        # TODO: Assign the arm to be used for pick_place
+        labels.append(obj.label)
+        points_arr = ros_to_pcl(obj.cloud).to_array()
+        centroid = np.mean(points_arr, axis=0)[:3]
+        centroid = (np.asscalar(centroid[0]), np.asscalar(centroid[1]), np.asscalar(centroid[2]))
+        centroids.append(centroid)
 
-        # TODO: Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
+        quaternion = tf.transformations.quaternion_from_euler(centroid[0], centroid[1], centroid[2])
+
+        pick_pose = Pose()
+        pick_pose.position.x = centroid[0]
+        pick_pose.position.y = centroid[1]
+        pick_pose.position.z = centroid[2]
+        pick_pose.orientation.x = quaternion[0]
+        pick_pose.orientation.y = quaternion[1]
+        pick_pose.orientation.z = quaternion[2]
+        pick_pose.orientation.w = quaternion[3]
+
+        arm = "right"
+        if object_group == "red":
+            arm = "left"
+
+        drop_list_param = rospy.get_param('/dropbox')
+        place_pose = get_place_pose(arm, drop_list_param)
 
         # Wait for 'pick_place_routine' service to come up
         rospy.wait_for_service('pick_place_routine')
 
+        world = Int32()
+        world.data = 3
+
+        obj_name = String()
+        obj_name.data = object_name
+
+        which_arm = String()
+        which_arm.data = arm
+
+        yaml_dict = make_yaml_dict(world, which_arm, obj_name, pick_pose, place_pose)
+        yaml_list.append(yaml_dict)
+
         try:
             pick_place_routine = rospy.ServiceProxy('pick_place_routine', PickPlace)
-
-            resp = pick_place_routine(TEST_SCENE_NUM, OBJECT_NAME, WHICH_ARM, PICK_POSE, PLACE_POSE)
+            resp = pick_place_routine(world, obj_name, which_arm, pick_pose, place_pose)
 
             print("Response: ", resp.success)
 
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
 
-    # TODO: Output your request parameters into output yaml file
+    send_to_yaml("output.yaml", yaml_list)
 
 
 if __name__ == '__main__':
