@@ -265,7 +265,11 @@ def pcl_callback(pcl_msg):
     axis_min = 0.6
     axis_max = 1
     cloud = apply_passthrough_filter(cloud, filter_axis, axis_min, axis_max)
-    publish_debug(cloud)
+
+    filter_axis = 'y'
+    axis_min = -0.5
+    axis_max = 0.5
+    cloud = apply_passthrough_filter(cloud, filter_axis, axis_min, axis_max)
 
     max_distance = 0.01
     inliers, coefficients = segment_point_cloud(cloud, max_distance)
