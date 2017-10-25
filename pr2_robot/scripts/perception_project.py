@@ -329,10 +329,10 @@ def get_place_pose(arm, drop_list_param):
     place_pose.position.x = position[0]
     place_pose.position.y = position[1]
     place_pose.position.z = position[2]
-    place_pose.orientation.x = quaternion[0]
-    place_pose.orientation.y = quaternion[1]
-    place_pose.orientation.z = quaternion[2]
-    place_pose.orientation.w = quaternion[3]
+    place_pose.orientation.x = np.asscalar(quaternion[0])
+    place_pose.orientation.y = np.asscalar(quaternion[1])
+    place_pose.orientation.z = np.asscalar(quaternion[2])
+    place_pose.orientation.w = np.asscalar(quaternion[3])
     return place_pose
 
 
@@ -348,8 +348,6 @@ def pr2_mover(object_list):
     object_group = ""
 
     object_list_param = rospy.get_param('/object_list')
-
-    # TODO: Rotate PR2 in place to capture side tables for the collision map
 
     for i in range(0, len(object_list_param)):
         object_name = object_list_param[i]['name']
@@ -374,10 +372,10 @@ def pr2_mover(object_list):
         pick_pose.position.x = centroid[0]
         pick_pose.position.y = centroid[1]
         pick_pose.position.z = centroid[2]
-        pick_pose.orientation.x = quaternion[0]
-        pick_pose.orientation.y = quaternion[1]
-        pick_pose.orientation.z = quaternion[2]
-        pick_pose.orientation.w = quaternion[3]
+        pick_pose.orientation.x = np.asscalar(quaternion[0])
+        pick_pose.orientation.y = np.asscalar(quaternion[1])
+        pick_pose.orientation.z = np.asscalar(quaternion[2])
+        pick_pose.orientation.w = np.asscalar(quaternion[3])
 
         arm = "right"
         if object_group == "red":
@@ -401,16 +399,26 @@ def pr2_mover(object_list):
         yaml_dict = make_yaml_dict(world, which_arm, obj_name, pick_pose, place_pose)
         yaml_list.append(yaml_dict)
 
+        # Rotates the robot but not how i would like
+        # rotate_msg = Float64()
+        # if arm == "left":
+            # rotate_msg.data = np.pi / 4
+        # else:
+            # rotate_msg.data = -np.pi / 4
+
+        # rotate_base_pub.publish(rotate_msg)
+
         try:
             pick_place_routine = rospy.ServiceProxy('pick_place_routine', PickPlace)
-            resp = pick_place_routine(world, obj_name, which_arm, pick_pose, place_pose)
+            # resp = pick_place_routine(world, obj_name, which_arm, pick_pose, place_pose)
 
-            print("Response: ", resp.success)
+            # print("Response: ", resp.success)
+            print("Response: ")
 
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
 
-    send_to_yaml("output.yaml", yaml_list)
+    send_to_yaml("output" + str(world.data) + ".yaml", yaml_list)
 
 
 if __name__ == '__main__':
@@ -427,6 +435,8 @@ if __name__ == '__main__':
 
     detected_objects_pub = rospy.Publisher("/detected_objects", DetectedObjectsArray, queue_size=1)
     object_markers_pub = rospy.Publisher("/object_markers", Marker, queue_size=1)
+
+    rotate_base_pub = rospy.Publisher("/pr2/world_joint_controller/command", Float64, queue_size=1)
 
     model = pickle.load(open('model.sav', 'rb'))
     clf = model['classifier']
