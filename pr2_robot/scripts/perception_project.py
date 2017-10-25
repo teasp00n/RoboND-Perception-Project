@@ -388,7 +388,7 @@ def pr2_mover(object_list):
         rospy.wait_for_service('pick_place_routine')
 
         world = Int32()
-        world.data = 3
+        world.data = 1
 
         obj_name = String()
         obj_name.data = object_name
